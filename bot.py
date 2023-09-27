@@ -1,8 +1,8 @@
 import nextcord
 from nextcord.ext import commands
 
-import lib.terminal as terminal
-from lib.terminal import error
+import plib.terminal as terminal
+from plib.terminal import error
 
 import os
 import sys
