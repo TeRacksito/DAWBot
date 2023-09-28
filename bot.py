@@ -4,12 +4,20 @@ from nextcord.ext import commands
 import plib.terminal as terminal
 from plib.terminal import error
 
+from cogs.verificator import Button
+from plib.db_handler import Database as Dh
+
 import os
 import sys
+import json
 import traceback
 
 # Initialize all logging and terminal features.
 terminal.initialize()
+
+with open("TOKEN.json") as file:
+    data = json.load(file)
+    token = data["token"]
 
 # Bot Intents definition
 intents = nextcord.Intents.default()
@@ -17,12 +25,32 @@ intents.members = True
 intents.message_content = True
 intents.typing = False
 intents.presences = False
+intents.all
 
 # Bot definition
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
 
 @bot.event
 async def on_ready():
+
+    # load persistent views
+    db = Dh()
+    
+    data = db.select("persistent_views")
+
+    for label, custom_id in data:
+        button = Button(label= label, custom_id= custom_id)
+        view = nextcord.ui.View()
+        view.add_item(button)
+
+        bot.add_view(view= view)
+        
+    # button = Button(label= "test", custom_id= "88d66f6dfca384b76c7e5a04dff86461")
+    # view = nextcord.ui.View()
+    # view.add_item(button)
+
+    # bot.add_view(view= view)
+
     # pylint: disable=missing-function-docstring
     await bot.change_presence(activity=nextcord.Activity(type=nextcord.ActivityType.watching, name="/help"))
     print("---------------------------------------------------------------")
@@ -33,7 +61,8 @@ async def on_ready():
     print("---------------------------------------------------------------")
     print(f"The bot's latency is {round(bot.latency * 1000)} ms")
     print("Logged in as " + str(bot.user))
-    print("---------------------------------------------------------------")
+    print("---------------------------------------------------------------") # System.out.print()
+    
 
 # Cogs loading process.
 if __name__ == "__main__":
@@ -44,12 +73,12 @@ if __name__ == "__main__":
                                       terminal.SGR.Foreground.rgb(128, 128, 128)))
 
 
-# Attempting to run the bot.
-try:
-    bot.run(token)
-except Exception as exception: # pylint: disable=broad-exception-caught
-    error(exception, traceback.format_exc(),
-                   "There was a problem starting the bot",
-                   ("Make sure the bot token is loaded correctly.\n"+
-                    f"Actual token value type --> ({type(token)}) and value len --> ({len(token)})."),
-                    level= "critical")
+    # Attempting to run the bot.
+    try:
+        bot.run(token)
+    except Exception as exception: # pylint: disable=broad-exception-caught
+        error(exception, traceback.format_exc(),
+                    "There was a problem starting the bot",
+                    ("Make sure the bot token is loaded correctly.\n"+
+                        f"Actual token value type --> ({type(token)}) and value len --> ({len(token)})."),
+                        level= "critical")
