@@ -60,13 +60,19 @@ class Modal (nextcord.ui.Modal):
                     db.update("users", "name", name, "on_use", 1)
 
                     role_verification = interaction.guild.get_role(1156453646649798726)
-                    role_daw = interaction.guild.get_role(1156454566854938655)
+                    role_daw = interaction.guild.get_role(1156910626153705553)
+                    role_daw_new = interaction.guild.get_role(1156454566854938655)
 
                     user_id = interaction.user.id
 
                     await interaction.guild.get_member(user_id).add_roles(
                         role_verification,
                         role_daw,
+                        reason= "Verified User by DAW bot"
+                    )
+
+                    await interaction.guild.get_member(user_id).remove_roles(
+                        role_daw_new,
                         reason= "Verified User by DAW bot"
                     )
 
