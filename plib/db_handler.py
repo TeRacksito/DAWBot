@@ -20,8 +20,7 @@ class Database:
         names_str += ")"
 
         values_str = "("
-        values_arr = list()
-        for value_index, value in enumerate(values):
+        for value_index, _ in enumerate(values):
             if value_index > 0:
                 values_str += ", "
             values_str += r"%s"
@@ -46,7 +45,7 @@ class Database:
 
         return payload
 
-    def update (self, table: str, key_name: str, key_value: str, value_name: str, value_value: bytes):
+    def update (self, table: str, key_name: str, key_value: str, value_name: str, value_value: int):
         cursor = self.mainDb.cursor()
 
         sql = f"UPDATE {table} SET {value_name} = {value_value} WHERE {key_name} = \"{key_value}\""

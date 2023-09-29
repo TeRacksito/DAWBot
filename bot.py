@@ -40,7 +40,7 @@ async def on_ready():
 
     for label, custom_id in data:
         button = Button(label= label, custom_id= custom_id)
-        view = nextcord.ui.View()
+        view = nextcord.ui.View(timeout= None)
         view.add_item(button)
 
         bot.add_view(view= view)
