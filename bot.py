@@ -49,6 +49,8 @@ async def on_ready():
     # view = nextcord.ui.View()
     # view.add_item(button)
 
+    #CHANGE
+
     # bot.add_view(view= view)
 
     # pylint: disable=missing-function-docstring
