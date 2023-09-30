@@ -746,8 +746,11 @@ class Timestamp:
 
     A class to easily create timestamps.
     """
-    def __init__(self, timestamp: datetime.datetime = datetime.datetime.now()):
-        self.timestamp = timestamp
+    def __init__(self, timestamp: datetime.datetime = None):
+        if timestamp is None:
+            self.timestamp = datetime.datetime.now()
+        else:
+            self.timestamp = timestamp
 
     @property
     def now(self) -> datetime.datetime:

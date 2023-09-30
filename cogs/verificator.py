@@ -154,18 +154,17 @@ class Verifier (commands.Cog):
         )
         # Create new ui view button
         label = "Verificarse"
-        button = Button(label=label)
+        button= Button(label=label)
         view = nextcord.ui.View(timeout= None)
         view.add_item(button)
+
+        message = await interaction.send(embed=embed, view=view)
 
         # save persistent button
         db = Dh()
 
-        db.insert("persistent_views", ["label", "custom_id"], [
-                  label, button.custom_id])
-
-        await interaction.send(embed=embed, view=view)
-
+        db.insert("persistent_views", ["label", "custom_id", "message_id"], [
+                  label, button.custom_id, message.id])
 # Setup
 
 
