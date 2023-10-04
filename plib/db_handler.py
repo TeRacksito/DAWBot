@@ -9,7 +9,17 @@ class Database:
         database= "s34176_general"
         )
     
+    def _checkTable (self, table: str):
+        cursor = self.mainDb.cursor()
+
+        cursor.execute("SELECT table_name FROM information_schema.tables")
+
+        payload = cursor.fetchall()
+
+        print(payload)
+    
     def insert(self, table: str, names: list, values: list):
+        self._checkTable(table= table)
         cursor = self.mainDb.cursor()
         
         names_str = "("
@@ -37,6 +47,7 @@ class Database:
         print(cursor.rowcount, "record(s) affected")
 
     def select (self, table: str):
+        self._checkTable(table= table)
         cursor = self.mainDb.cursor()
 
         cursor.execute(f"SELECT * FROM {table}")
@@ -46,6 +57,7 @@ class Database:
         return payload
 
     def update (self, table: str, key_name: str, key_value: str, value_name: str, value_value: int):
+        self._checkTable(table= table)
         cursor = self.mainDb.cursor()
 
         sql = f"UPDATE {table} SET {value_name} = {value_value} WHERE {key_name} = \"{key_value}\""

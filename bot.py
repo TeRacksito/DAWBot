@@ -4,7 +4,7 @@ from nextcord.ext import commands
 import plib.terminal as terminal
 from plib.terminal import error
 
-from cogs.verificator import Button
+from plib.persistence import loadPersistentViews
 from plib.db_handler import Database as Dh
 
 import os
@@ -34,16 +34,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_
 async def on_ready():
 
     # load persistent views
-    db = Dh()
-    
-    data = db.select("persistent_views")
-
-    for label, custom_id, message_id in data:
-        button = Button(label= label, custom_id= custom_id)
-        view = nextcord.ui.View(timeout= None)
-        view.add_item(button)
-
-        bot.add_view(view= view, message_id= int(message_id))
+    loadPersistentViews(bot= bot)
         
     # button = Button(label= "test", custom_id= "88d66f6dfca384b76c7e5a04dff86461")
     # view = nextcord.ui.View()
