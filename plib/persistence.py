@@ -16,12 +16,14 @@ async def loadPersistentViews(bot: commands.Bot, table: str = "persistent_views"
     (Alpha) Loads persistent views to bot.
     For now it only works for verifier buttons.
 
+    ## Does not work for now on any other context.
+
     Parameters
     ----------
     bot : `commands.Bot`
-        _description_
+        Bot object.
     table : `str, optional`
-        _description_, by default `"persistent_views"`
+        Table name to load persistent views from, by default `"persistent_views"`
     """
 
     try:
@@ -41,7 +43,7 @@ async def loadPersistentViews(bot: commands.Bot, table: str = "persistent_views"
         try:
             guild = await bot.fetch_guild(guild_id)
             channel: nextcord.abc.Messageable = await guild.fetch_channel(channel_id) # pyright: ignore[reportGeneralTypeIssues]
-            message = await channel.fetch_message(message_id)
+            _ = await channel.fetch_message(message_id)
         except nextcord.errors.NotFound:
             try:
                 db.delete(table, {"channel_id": channel_id, "message_id": message_id})

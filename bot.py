@@ -5,7 +5,7 @@ import plib.terminal as terminal
 from plib.terminal import error
 
 from plib.persistence import loadPersistentViews
-from plib.db_handler import Database as Dh
+from plib.db_handler import Database as Db
 
 import os
 import sys

@@ -7,8 +7,12 @@ from nextcord.enums import ButtonStyle
 from nextcord.ext import commands
 from nextcord.partial_emoji import PartialEmoji
 
-from plib.db_handler import Database as Dh
+from plib.db_handler import Database as Db
 from plib.utils.custom_exceptions import BranchWarning
+
+db = Db()
+guild_id = int(db.select("basic_info", {"name": "guild_id"})[0][1])
+del db
 
 
 class Modal (nextcord.ui.Modal):
@@ -33,7 +37,7 @@ class Modal (nextcord.ui.Modal):
         await interaction.response.defer()
         print(self.question.value)
 
-        db = Dh()
+        db = Db()
 
         
         users: List[tuple[str, int]] = db.select("users") # pyright: ignore[reportGeneralTypeIssues]
@@ -151,7 +155,7 @@ class Verifier (commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    @nextcord.slash_command(guild_ids=[1156345547788136539], force_global=True,
+    @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                             description="Description", default_member_permissions= 8)
     async def verification(self, interaction: Interaction):
 
@@ -173,7 +177,7 @@ class Verifier (commands.Cog):
         message: nextcord.WebhookMessage = await interaction.send(embed=embed, view=view) # pyright: ignore[reportGeneralTypeIssues]
 
         # save persistent button
-        db = Dh()
+        db = Db()
 
         try:
             db.insert("persistent_views", ["label", "custom_id", "message_id", "channel_id"],
