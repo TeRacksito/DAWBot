@@ -1,4 +1,8 @@
 import mysql.connector
+from plib.utils.general import getCurrentBranch
+from plib.utils.custom_exceptions import BranchWarning
+from plib.terminal import error
+import traceback
 
 class Database:
     def __init__(self) -> None:
@@ -14,12 +18,25 @@ class Database:
 
         cursor.execute("SELECT table_name FROM information_schema.tables")
 
-        payload = cursor.fetchall()
+        tabes = cursor.fetchall()
 
-        print(payload)
+        for table_name in tabes:
+            if table in table_name:
+                return True
+        
+        return False
     
     def insert(self, table: str, names: list, values: list):
-        self._checkTable(table= table)
+        if not self._checkTable(table= table):
+            raise NameError(f"Table {table} does not exist.")
+
+        if getCurrentBranch() != "main":
+            try:
+                raise BranchWarning(branch= getCurrentBranch())
+            except BranchWarning as e:
+                error(e, traceback.format_exc(), "Not on main branch", "Please switch to the main branch to update the database.", level= "WARNING")
+                raise
+
         cursor = self.mainDb.cursor()
         
         names_str = "("
@@ -46,21 +63,69 @@ class Database:
 
         print(cursor.rowcount, "record(s) affected")
 
-    def select (self, table: str):
-        self._checkTable(table= table)
+    def select (self, table: str, conditions: dict = None):
+        if not self._checkTable(table= table):
+            raise NameError(f"Table {table} does not exist.")
         cursor = self.mainDb.cursor()
 
-        cursor.execute(f"SELECT * FROM {table}")
+        sql = f"SELECT * FROM {table}"
+
+        if conditions:
+            sql += " WHERE "
+
+            for condition_index, condition in enumerate(conditions):
+                if condition_index > 0:
+                    sql += " AND "
+                sql += f"{condition} = \"{conditions[condition]}\""
+
+        cursor.execute(sql)
 
         payload = cursor.fetchall()
 
         return payload
 
     def update (self, table: str, key_name: str, key_value: str, value_name: str, value_value: int):
-        self._checkTable(table= table)
+        if not self._checkTable(table= table):
+            raise NameError(f"Table {table} does not exist.")
+
+        if getCurrentBranch() != "main":
+            try:
+                raise BranchWarning(branch= getCurrentBranch())
+            except BranchWarning as e:
+                error(e, traceback.format_exc(), "Not on main branch", "Please switch to the main branch to update the database.", level= "WARNING")
+                raise
+
         cursor = self.mainDb.cursor()
 
         sql = f"UPDATE {table} SET {value_name} = {value_value} WHERE {key_name} = \"{key_value}\""
+
+        print(sql)
+
+        cursor.execute(sql)
+
+        self.mainDb.commit()
+
+        print(cursor.rowcount, "record(s) affected")
+    
+    def delete (self, table: str, conditions: dict):
+        if not self._checkTable(table= table):
+            raise NameError(f"Table {table} does not exist.")
+
+        if getCurrentBranch() != "main":
+            try:
+                raise BranchWarning(branch= getCurrentBranch())
+            except BranchWarning as e:
+                error(e, traceback.format_exc(), "Not on main branch", "Please switch to the main branch to update the database.", level= "WARNING")
+                raise
+
+        cursor = self.mainDb.cursor()
+
+        sql = f"DELETE FROM {table} WHERE "
+
+        for condition_index, condition in enumerate(conditions):
+            if condition_index > 0:
+                sql += " AND "
+            sql += f"{condition} = \"{conditions[condition]}\""
 
         print(sql)
 

@@ -34,7 +34,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_
 async def on_ready():
 
     # load persistent views
-    loadPersistentViews(bot= bot)
+    await loadPersistentViews(bot= bot)
         
     # button = Button(label= "test", custom_id= "88d66f6dfca384b76c7e5a04dff86461")
     # view = nextcord.ui.View()
