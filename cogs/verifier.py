@@ -8,6 +8,7 @@ from nextcord.ext import commands
 from nextcord.partial_emoji import PartialEmoji
 
 from plib.db_handler import Database as Dh
+from plib.utils.custom_exceptions import BranchWarning
 
 
 class Modal (nextcord.ui.Modal):
@@ -57,8 +58,19 @@ class Modal (nextcord.ui.Modal):
                     return None
 
                 else:
-                    db.update(table="users", key_name="name",
+                    try:
+                        db.update(table="users", key_name="name",
                               key_value=name, value_name="on_use", value_value=1)
+                    except BranchWarning:
+                        channel = await interaction.user.create_dm()
+
+                        embed = nextcord.Embed(
+                            color=0xc60f33,
+                            title="Developer mode.",
+                            description="Bot en modo developer." +
+                            "\nNo se ha guardado de forma permanente la verificación."
+                        )
+                        await channel.send(embed=embed)
 
                     role_verification = interaction.guild.get_role(
                         1156453646649798726)
@@ -158,13 +170,16 @@ class Verifier (commands.Cog):
         view = nextcord.ui.View(timeout= None)
         view.add_item(button)
 
-        message = await interaction.send(embed=embed, view=view)
+        message: nextcord.WebhookMessage = await interaction.send(embed=embed, view=view) # pyright: ignore[reportGeneralTypeIssues]
 
         # save persistent button
         db = Dh()
 
-        db.insert("persistent_views", ["label", "custom_id", "message_id"], [
-                  label, button.custom_id, message.id])
+        try:
+            db.insert("persistent_views", ["label", "custom_id", "message_id", "channel_id"],
+                      [label, button.custom_id, message.id, message.channel.id])
+        except BranchWarning:
+            pass
 # Setup
 
 
