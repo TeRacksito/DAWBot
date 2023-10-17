@@ -35,15 +35,7 @@ async def on_ready():
 
     # load persistent views
     await loadPersistentViews(bot= bot)
-        
-    # button = Button(label= "test", custom_id= "88d66f6dfca384b76c7e5a04dff86461")
-    # view = nextcord.ui.View()
-    # view.add_item(button)
-
-    #CHANGE
-
-    # bot.add_view(view= view)
-
+    
     # pylint: disable=missing-function-docstring
     await bot.change_presence(activity=nextcord.Activity(type=nextcord.ActivityType.watching, name="/help"))
     print("---------------------------------------------------------------")
