@@ -19,17 +19,14 @@ class Modal (nextcord.ui.Modal):
     def __init__(self, title: str, *, timeout: float | None = None, auto_defer: bool = True) -> None:
         super().__init__(title, timeout=timeout, auto_defer=auto_defer)
 
-        # self.add_item("TestTestTestTestTestTestTestTestTestTest")
-
         self.question = nextcord.ui.TextInput(
             label="Nombre y Apellidos",
             style=nextcord.TextInputStyle.short,
-            placeholder="Copialo exactamente igual que en el Campus.",
+            placeholder="Cópialo exactamente igual que en el Campus.",
             required=True,
             min_length=10,
             row=0
         )
-        # self.children.append(self.question)
         self.add_item(self.question)
 
     async def callback(self, interaction: Interaction) -> None:
@@ -39,7 +36,7 @@ class Modal (nextcord.ui.Modal):
 
         db = Db()
 
-        
+
         users: List[tuple[str, int]] = db.select("users") # pyright: ignore[reportGeneralTypeIssues]
 
         for user in users:
@@ -95,11 +92,6 @@ class Modal (nextcord.ui.Modal):
                         reason="Verified User by DAW bot"
                     )
 
-                    # interaction.user.add_roles(
-                    #     roles= [role_verification, role_daw],
-                    #     reason= "Verified User by DAW bot"
-                    # )
-
                     nick = name.split(" ")[0] + " " + \
                         name.split(" ")[1][0] + "."
 
@@ -127,7 +119,6 @@ class Modal (nextcord.ui.Modal):
         await channel.send(embed=embed)
         return None
 
-
 class Button (nextcord.ui.Button):
     def __init__(self, *, style: ButtonStyle = ButtonStyle.secondary, label: str | None = None, disabled: bool = False, custom_id: str | None = None, url: str | None = None, emoji: str | Emoji | PartialEmoji | None = None, row: int | None = None) -> None:
         super().__init__(style=style, label=label, disabled=disabled,
@@ -149,7 +140,6 @@ class Button (nextcord.ui.Button):
             return None
         modal = Modal(title="Verificación de alumno DAW.")
         await interaction.response.send_modal(modal=modal)
-
 
 class Verifier (commands.Cog):
     def __init__(self, bot) -> None:
