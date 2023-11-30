@@ -40,7 +40,7 @@ async def on_ready():
     # view = nextcord.ui.View()
     # view.add_item(button)
 
-    #CHANGE
+    #CHANGE 2
 
     # bot.add_view(view= view)
 
