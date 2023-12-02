@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 import nextcord
@@ -7,25 +8,23 @@ from nextcord.enums import ButtonStyle
 from nextcord.ext import commands
 from nextcord.partial_emoji import PartialEmoji
 
-from plib.db_handler import Database as Dh
+from plib.db_handler import Database as Db
 from plib.utils.custom_exceptions import BranchWarning
 
+guild_id = int(os.environ["guild_id"])
 
 class Modal (nextcord.ui.Modal):
     def __init__(self, title: str, *, timeout: float | None = None, auto_defer: bool = True) -> None:
         super().__init__(title, timeout=timeout, auto_defer=auto_defer)
 
-        # self.add_item("TestTestTestTestTestTestTestTestTestTest")
-
         self.question = nextcord.ui.TextInput(
             label="Nombre y Apellidos",
             style=nextcord.TextInputStyle.short,
-            placeholder="Copialo exactamente igual que en el Campus.",
+            placeholder="Cópialo exactamente igual que en el Campus.",
             required=True,
             min_length=10,
             row=0
         )
-        # self.children.append(self.question)
         self.add_item(self.question)
 
     async def callback(self, interaction: Interaction) -> None:
@@ -33,10 +32,9 @@ class Modal (nextcord.ui.Modal):
         await interaction.response.defer()
         print(self.question.value)
 
-        db = Dh()
+        db = Db()
 
-        
-        users: List[tuple[str, int]] = db.select("users") # pyright: ignore[reportGeneralTypeIssues]
+        users: List[tuple[str, int]] = db.select("USERS") # pyright: ignore[reportGeneralTypeIssues]
 
         for user in users:
 
@@ -59,7 +57,7 @@ class Modal (nextcord.ui.Modal):
 
                 else:
                     try:
-                        db.update(table="users", key_name="name",
+                        db.update(table="USERS", key_name="name",
                               key_value=name, value_name="on_use", value_value=1)
                     except BranchWarning:
                         channel = await interaction.user.create_dm()
@@ -91,11 +89,6 @@ class Modal (nextcord.ui.Modal):
                         reason="Verified User by DAW bot"
                     )
 
-                    # interaction.user.add_roles(
-                    #     roles= [role_verification, role_daw],
-                    #     reason= "Verified User by DAW bot"
-                    # )
-
                     nick = name.split(" ")[0] + " " + \
                         name.split(" ")[1][0] + "."
 
@@ -123,7 +116,6 @@ class Modal (nextcord.ui.Modal):
         await channel.send(embed=embed)
         return None
 
-
 class Button (nextcord.ui.Button):
     def __init__(self, *, style: ButtonStyle = ButtonStyle.secondary, label: str | None = None, disabled: bool = False, custom_id: str | None = None, url: str | None = None, emoji: str | Emoji | PartialEmoji | None = None, row: int | None = None) -> None:
         super().__init__(style=style, label=label, disabled=disabled,
@@ -146,12 +138,11 @@ class Button (nextcord.ui.Button):
         modal = Modal(title="Verificación de alumno DAW.")
         await interaction.response.send_modal(modal=modal)
 
-
 class Verifier (commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    @nextcord.slash_command(guild_ids=[1156345547788136539], force_global=True,
+    @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                             description="Description", default_member_permissions= 8)
     async def verification(self, interaction: Interaction):
 
@@ -173,10 +164,10 @@ class Verifier (commands.Cog):
         message: nextcord.WebhookMessage = await interaction.send(embed=embed, view=view) # pyright: ignore[reportGeneralTypeIssues]
 
         # save persistent button
-        db = Dh()
+        db = Db()
 
         try:
-            db.insert("persistent_views", ["label", "custom_id", "message_id", "channel_id"],
+            db.insert("PERSISTENT_VIEWS", ["label", "custom_id", "message_id", "channel_id"],
                       [label, button.custom_id, message.id, message.channel.id])
         except BranchWarning:
             pass
