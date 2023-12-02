@@ -8,10 +8,10 @@ from plib.utils.custom_exceptions import BotTypeError
 
 from plib.db_handler import Database as Db
 from plib.utils.custom_exceptions import BranchWarning
-from cogs.verifier import Button
+from db_cogs.verifier import Button
 
 
-async def loadPersistentViews(bot: commands.Bot, table: str = "persistent_views"):
+async def loadPersistentViews(bot: commands.Bot, table: str = "PERSISTENT_VIEWS"):
     """
     (Alpha) Loads persistent views to bot.
     For now it only works for verifier buttons.
@@ -23,7 +23,7 @@ async def loadPersistentViews(bot: commands.Bot, table: str = "persistent_views"
     bot : `commands.Bot`
         Bot object.
     table : `str, optional`
-        Table name to load persistent views from, by default `"persistent_views"`
+        Table name to load persistent views from, by default `"PERSISTENT_VIEWS"`
     """
 
     try:
@@ -37,7 +37,7 @@ async def loadPersistentViews(bot: commands.Bot, table: str = "persistent_views"
 
     data = db.select(table)
 
-    guild_id = int(db.select("basic_info", {"name": "guild_id"})[0][1])
+    guild_id = int(db.select("BASIC_INFO", {"name": "guild_id"})[0][1])
 
     for label, custom_id, message_id, channel_id in data:
         try:

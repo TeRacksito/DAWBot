@@ -1,78 +1,71 @@
+import imp
 from operator import ne
 from pprint import pp
 from discord import TextChannel
 import nextcord
 from nextcord import Interaction
 from nextcord.ext import commands, ipc
+import os
 
-from plib.db_handler import Database as Db
-
-db = Db()
-guild_id = int(db.select("basic_info", {"name": "guild_id"})[0][1])
-del db
+guild_id = int(os.environ["guild_id"])
 
 class NewsPaper(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
     
-    # @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
-    #                         description="Description")
-    # async def test_command(self, interaction: Interaction):
-    #     # code here
-    #     pass
-    
     @ipc.server.route()
     async def publish(self, data):
-        pageData = data.pageData
-        payloadEmbeds = list()
-        embedTitle = nextcord.Embed(
+        page_data = data.page_data
+        payload_embeds = list()
+        embed_title = nextcord.Embed(
             title= "¡Nueva tarea encontrada!",
             color= 0x825bca,
-            description=   (f"Tarea de {pageData['name']}\n\n" +
+            description=   (f"Tarea de {page_data['name']}({page_data['link']})\n\n" +
                             "Parece ser que se ha encontrado una nueva tarea en el campus. " +
                             "Podría tratarse de una tarea nueva o de una tarea modificada. " +
                             "También podría ser una tarea erróneamente publicada.")
         )
-        embedTitle.set_thumbnail(url= pageData["link"])
-        payloadEmbeds.append(embedTitle)
+        payload_embeds.append(embed_title)
 
-        contentDescription = f"Contenido encontrado: \n\n{pageData['content'][:4000:]}"
-        if len(pageData["content"]) > 4001:
-            contentDescription += "\n\n[...]"
-        embedContent = nextcord.Embed(
-            title= pageData["title"],
+        content_description = f"Contenido encontrado: \n\n{page_data['content'][:4000:]}"
+        if len(page_data["content"]) > 4001:
+            content_description += "\n\n[...]"
+        embed_content = nextcord.Embed(
+            title= page_data["title"],
             color= 0x4c327c,
-            description= contentDescription
+            description= content_description
         )
-        payloadEmbeds.append(embedContent)
+        payload_embeds.append(embed_content)
 
-        if pageData["urls"]:                
-            urlsDescription = "Se han encontrado una serie de enlaces que podrían resultar útiles: \n\n"
-            for url in pageData["urls"]:
+        if page_data["urls"]:                
+            urls_description = "Se han encontrado una serie de enlaces que podrían resultar útiles: \n\n"
+            for url in page_data["urls"]:
                 section = f'- {url["text"]}\n  - {url["link"]}\n\n'
 
-                if len(urlsDescription) + len(section) > 4001:
-                    urlsDescription += "\n\n[...] demasiados enlaces para mostrar..."
+                if len(urls_description) + len(section) > 4001:
+                    urls_description += "\n\n[...] demasiados enlaces para mostrar..."
                     break
+                
+                urls_description += section
 
-            embedUrls = nextcord.Embed(
+            embed_urls = nextcord.Embed(
                 title= "Posibles enlaces",
                 color= 0x4c327c,
-                description= urlsDescription
+                description= urls_description
             )
-            payloadEmbeds.append(embedUrls)
+            payload_embeds.append(embed_urls)
         else:
-            embedUrls = None
+            embed_urls = None
         
 
         guild = self.bot.get_guild(guild_id)
         channel: TextChannel = guild.get_channel(1157581624423239761)
 
         webhooks = await channel.webhooks()
-        print(f"Publishing {pageData['title']}...")
+        print(f"Publishing {page_data['title']}...")
         await webhooks[0].send(
             username= "Vigilante",
-            embeds= payloadEmbeds,
+            embeds= payload_embeds,
             avatar_url= "https://media.discordapp.net/attachments/1156462946101248040/1177961564104556705/ojo-morado-tiempo-188132-4003427999.png?ex=65746932&is=6561f432&hm=35916669e3dc8e1bbfda095b8c6d2208d17de56cc2921488cb799cd216239f4d&=&format=webp&width=832&height=468https://media.discordapp.net/attachments/1156462946101248040/1177961564104556705/ojo-morado-tiempo-188132-4003427999.png?ex=65746932&is=6561f432&hm=35916669e3dc8e1bbfda095b8c6d2208d17de56cc2921488cb799cd216239f4d&=&format=webp&width=832&height=468"
             )
 

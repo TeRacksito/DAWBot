@@ -1,12 +1,9 @@
 import nextcord
 from nextcord import Interaction
 from nextcord.ext import commands
+import os
 
-from plib.db_handler import Database as Db
-
-db = Db()
-guild_id = int(db.select("basic_info", {"name": "guild_id"})[0][1])
-del db
+guild_id = int(os.environ["guild_id"])
 
 class Test (commands.Cog):
     def __init__(self, bot) -> None:

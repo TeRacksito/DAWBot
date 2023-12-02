@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 import nextcord
@@ -10,10 +11,7 @@ from nextcord.partial_emoji import PartialEmoji
 from plib.db_handler import Database as Db
 from plib.utils.custom_exceptions import BranchWarning
 
-db = Db()
-guild_id = int(db.select("basic_info", {"name": "guild_id"})[0][1])
-del db
-
+guild_id = int(os.environ["guild_id"])
 
 class Modal (nextcord.ui.Modal):
     def __init__(self, title: str, *, timeout: float | None = None, auto_defer: bool = True) -> None:
@@ -36,8 +34,7 @@ class Modal (nextcord.ui.Modal):
 
         db = Db()
 
-
-        users: List[tuple[str, int]] = db.select("users") # pyright: ignore[reportGeneralTypeIssues]
+        users: List[tuple[str, int]] = db.select("USERS") # pyright: ignore[reportGeneralTypeIssues]
 
         for user in users:
 
@@ -60,7 +57,7 @@ class Modal (nextcord.ui.Modal):
 
                 else:
                     try:
-                        db.update(table="users", key_name="name",
+                        db.update(table="USERS", key_name="name",
                               key_value=name, value_name="on_use", value_value=1)
                     except BranchWarning:
                         channel = await interaction.user.create_dm()
@@ -170,7 +167,7 @@ class Verifier (commands.Cog):
         db = Db()
 
         try:
-            db.insert("persistent_views", ["label", "custom_id", "message_id", "channel_id"],
+            db.insert("PERSISTENT_VIEWS", ["label", "custom_id", "message_id", "channel_id"],
                       [label, button.custom_id, message.id, message.channel.id])
         except BranchWarning:
             pass

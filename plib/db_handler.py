@@ -3,20 +3,38 @@ from plib.utils.general import getCurrentBranch
 from plib.utils.custom_exceptions import BranchWarning
 from plib.terminal import error
 import traceback
+import json
 
 
 class Database:
     """
     A class to handle database operations.
-    
+
+    Raises
+    ------
+    `KeyError` or `FileNotFoundError`
+        If the file TOKEN.json does not exist or does not contain the database credentials.
     """
     def __init__(self) -> None:
-        self.mainDb = mysql.connector.connect(
-            host="161.97.78.70",
-            user="u34176_uEuxXMbGcY",
-            password="t3KAs4vxN==w1C^cSPQt79AH",
-            database="s34176_general"
-        )
+        try:
+            with open("TOKEN.json", encoding="utf-8") as file:
+                data = json.load(file)
+                host = data["db_host"]
+                user = data["db_user"]
+                password = data["db_pass"]
+                database = data["db_name"]
+
+            self.mainDb = mysql.connector.connect(
+                host= host,
+                user= user,
+                password= password,
+                database= database
+            )
+        except (KeyError, FileNotFoundError) as e:
+            error(e, traceback.format_exc(), "Database credentials not found",
+                  "Please make sure that the file TOKEN.json exists and contains the database credentials.", level="WARNING")
+            self.mainDb = None
+            raise
 
     def _checkTable(self, table: str):
         """
