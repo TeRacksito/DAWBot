@@ -1,9 +1,5 @@
-import imp
-from operator import ne
-from pprint import pp
 from discord import TextChannel
 import nextcord
-from nextcord import Interaction
 from nextcord.ext import commands, ipc
 import os
 
