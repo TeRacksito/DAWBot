@@ -27,7 +27,7 @@ class NewsPaper(commands.Cog):
         if len(page_data["content"]) > 4001:
             content_description += "\n\n[...]"
         embed_content = nextcord.Embed(
-            title= f"[{page_data["title"]}]({page_data['link']})",
+            title= f"[{page_data['title']}]({page_data['link']})",
             color= 0x4c327c,
             description= content_description
         )
