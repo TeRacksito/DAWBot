@@ -56,7 +56,7 @@ class NewsPaper(commands.Cog):
         
 
         guild = self.bot.get_guild(guild_id)
-        channel: TextChannel = guild.get_channel(1157581624423239761)
+        channel: TextChannel = guild.get_channel(1180836333959249960)
 
         webhooks = await channel.webhooks()
         print(f"Publishing {page_data['title']}...")
