@@ -17,6 +17,7 @@ class NewsPaper(commands.Cog):
             title= "¡Nueva tarea encontrada!",
             color= 0x825bca,
             description=   (f"Tarea de {page_data['name']}\n\n" +
+                            f"[Haz clic para ver la tarea.]({page_data['link']})\n\n" +
                             "Parece ser que se ha encontrado una nueva tarea en el campus. " +
                             "Podría tratarse de una tarea nueva o de una tarea modificada. " +
                             "También podría ser una tarea erróneamente publicada.")
@@ -27,7 +28,7 @@ class NewsPaper(commands.Cog):
         if len(page_data["content"]) > 4001:
             content_description += "\n\n[...]"
         embed_content = nextcord.Embed(
-            title= f"[{page_data['title']}]({page_data['link']})",
+            title= page_data['title'],
             color= 0x4c327c,
             description= content_description
         )
