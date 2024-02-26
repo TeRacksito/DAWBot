@@ -1,32 +1,13 @@
 import plib.terminal as terminal
-
-# Initialize all logging and terminal features.
-terminal.initialize()
-
 from plib.terminal import error
 from plib.db_handler import Database as Db
 import os
 import sys
 import json
 import traceback
-
-try:
-    CONNECTION_TEST = Db()
-except Exception as e: # pylint: disable=broad-exception-caught
-    error(e, traceback.format_exc(),
-        "There was a problem connecting to the database, not loading database dependent cogs.",
-        "Make sure the database credentials are loaded correctly.",
-            level= "WARNING")
-    CONNECTION_TEST = None
-
-if CONNECTION_TEST is not None:
-    os.environ["guild_id"] = str(int(CONNECTION_TEST.select("BASIC_INFO", {"name": "guild_id"})[0][1]))
-else:
-    os.environ["guild_id"] = "1156345547788136539"
-
+from multiprocessing.connection import Client
 import nextcord
 from nextcord.ext import commands, ipc
-from plib.persistence import loadPersistentViews
 
 def loadCogs(bot: commands.Bot, path: str = "cogs"):
     """
@@ -39,6 +20,8 @@ def loadCogs(bot: commands.Bot, path: str = "cogs"):
     path : `str`, optional
         Path to load cogs from, by default "cogs"
     """
+    print(terminal.SGR.format(f"Loading cogs from {terminal.SGR.apply(path, terminal.SGR.bold)}",
+                                terminal.SGR.Foreground.rgb(128, 128, 128)))
     for filename in os.listdir(path):
         if filename.endswith(".py"):
             bot.load_extension(f"{path}.{filename[:-3]}")
@@ -51,6 +34,8 @@ class DawBot(commands.Bot):
 
         if ipc_key is not None:
             self.ipc = ipc.server.Server(self, secret_key=ipc_key)
+
+            self.getConnection()
         else:
             self.ipc = None
             print("---------------------------------------------------------------")
@@ -61,10 +46,36 @@ class DawBot(commands.Bot):
 
         if CONNECTION_TEST is not None:
             loadCogs(self, "db_cogs")
+    
+    def getConnection(self):
+        try:
+            if self.conn is not None and not self.conn.closed:
+                return self.conn
+        except AttributeError:
+            pass
+        
+        address = ('localhost', 6000)
+        try:
+            self.conn = Client(address, authkey=ipc_key.encode())
+            return self.conn
+        except ConnectionRefusedError:
+            self.conn = None
+            print("---------------------------------------------------------------")
+            print("codingGym connection has been refused. Make sure the codingGym is running.")
+            print("---------------------------------------------------------------")
+            return None
+        except ConnectionResetError:
+            self.conn = None
+            print("---------------------------------------------------------------")
+            print("codingGym connection has been reset. Make sure the codingGym is running.")
+            print("---------------------------------------------------------------")
+            return None
+
 
     async def on_ready(self):
         # load persistent views
         if CONNECTION_TEST is not None:
+            from plib.persistence import loadPersistentViews
             await loadPersistentViews(bot= self)
         
         # pylint: disable=missing-function-docstring
@@ -89,27 +100,44 @@ class DawBot(commands.Bot):
 
 
 
-with open("TOKEN.json") as file:
-    data = json.load(file)
-    token = data["token"]
-    try:
-        ipc_key = data["ipc_key"]
-    except KeyError:
-        ipc_key = None
-
-# Bot Intents definition
-intents = nextcord.Intents.default()
-intents.members = True
-intents.message_content = True
-intents.typing = False
-intents.presences = False
-intents.all
-
-# Bot definition
-bot = DawBot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
-
 # Attempting to run the bot.
 if __name__ == "__main__":
+    # Initialize all logging and terminal features.
+    terminal.initialize()
+
+    try:
+        CONNECTION_TEST = Db()
+    except Exception as e: # pylint: disable=broad-exception-caught
+        error(e, traceback.format_exc(),
+            "There was a problem connecting to the database, not loading database dependent cogs.",
+            "Make sure the database credentials are loaded correctly.",
+                level= "WARNING")
+        CONNECTION_TEST = None
+
+    if CONNECTION_TEST is not None:
+        os.environ["guild_id"] = str(int(CONNECTION_TEST.select("BASIC_INFO", {"name": "guild_id"})[0][1]))
+    else:
+        os.environ["guild_id"] = "1156345547788136539"
+
+    with open("TOKEN.json") as file:
+        data = json.load(file)
+        token = data["token"]
+        try:
+            ipc_key = data["ipc_key"]
+        except KeyError:
+            ipc_key = None
+
+    # Bot Intents definition
+    intents = nextcord.Intents.default()
+    intents.members = True
+    intents.message_content = True
+    intents.typing = False
+    intents.presences = False
+    intents.all
+
+    # Bot definition
+    bot = DawBot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
+    
     try:
         if bot.ipc is not None:
             bot.ipc.start()

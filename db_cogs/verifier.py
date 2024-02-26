@@ -173,7 +173,6 @@ class Verifier (commands.Cog):
             pass
 # Setup
 
-
 def setup(bot: commands.Bot):
     # pylint: disable=missing-function-docstring
     bot.add_cog(Verifier(bot))

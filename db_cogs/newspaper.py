@@ -71,4 +71,5 @@ class NewsPaper(commands.Cog):
 
 def setup(bot: commands.Bot):
     # pylint: disable=missing-function-docstring
-    bot.add_cog(NewsPaper(bot))
+    # bot.add_cog(NewsPaper(bot))
+    None

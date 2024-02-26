@@ -62,7 +62,7 @@ class Database:
 
         return False
 
-    def insert(self, table: str, names: list, values: list):
+    def insert(self, table: str, names: list, values: list, retrieve_id: bool = False):
         """
         Inserts a register into a table.
         
@@ -86,13 +86,13 @@ class Database:
         if not self._checkTable(table=table):
             raise NameError(f"Table {table} does not exist.")
 
-        if getCurrentBranch() != "main":
-            try:
-                raise BranchWarning(branch=getCurrentBranch())
-            except BranchWarning as e:
-                error(e, traceback.format_exc(), "Not on main branch",
-                      "Please switch to the main branch to update the database.", level="WARNING")
-                raise
+        # if getCurrentBranch() != "main":
+        #     try:
+        #         raise BranchWarning(branch=getCurrentBranch())
+        #     except BranchWarning as e:
+        #         error(e, traceback.format_exc(), "Not on main branch",
+        #               "Please switch to the main branch to update the database.", level="WARNING")
+        #         raise
 
         cursor = self.mainDb.cursor()
 
@@ -119,8 +119,10 @@ class Database:
         self.mainDb.commit()
 
         print(cursor.rowcount, "record(s) affected")
+        if retrieve_id:
+            return cursor.lastrowid
 
-    def select(self, table: str, conditions: dict = None):
+    def select(self, table: str, conditions: dict = None, fields: list = None):
         """
         Selects registers from a table.        
         
@@ -147,7 +149,15 @@ class Database:
             raise NameError(f"Table {table} does not exist.")
         cursor = self.mainDb.cursor()
 
-        sql = f"SELECT * FROM {table}"
+        if fields is None:
+            sql = f"SELECT * FROM {table}"
+        else:
+            fields_str = ""
+            for field_index, field in enumerate(fields):
+                fields_str += field
+                if field_index != len(fields) - 1:
+                    fields_str += ", "
+            sql = f"SELECT {fields_str} FROM {table}"
 
         if conditions:
             sql += " WHERE "
@@ -158,6 +168,29 @@ class Database:
                 sql += f"{condition} = \"{conditions[condition]}\""
 
         cursor.execute(sql)
+
+        payload = cursor.fetchall()
+
+        return payload
+
+    def query(self, query: str):
+        """
+        Executes a custom query.
+        
+        Parameters
+        ----------
+        query : `str`
+            Custom query to execute.
+        
+        Returns
+        -------
+        `list[(tuple,)]`
+            list of registers as tuples. Could be empty.
+            Could be other type format depending on the table.
+        """
+        cursor = self.mainDb.cursor()
+
+        cursor.execute(query)
 
         payload = cursor.fetchall()
 
@@ -191,13 +224,13 @@ class Database:
         if not self._checkTable(table=table):
             raise NameError(f"Table {table} does not exist.")
 
-        if getCurrentBranch() != "main":
-            try:
-                raise BranchWarning(branch=getCurrentBranch())
-            except BranchWarning as e:
-                error(e, traceback.format_exc(), "Not on main branch",
-                      "Please switch to the main branch to update the database.", level="WARNING")
-                raise
+        # if getCurrentBranch() != "main":
+        #     try:
+        #         raise BranchWarning(branch=getCurrentBranch())
+        #     except BranchWarning as e:
+        #         error(e, traceback.format_exc(), "Not on main branch",
+        #               "Please switch to the main branch to update the database.", level="WARNING")
+        #         raise
 
         cursor = self.mainDb.cursor()
 
@@ -238,13 +271,13 @@ class Database:
         if not self._checkTable(table=table):
             raise NameError(f"Table {table} does not exist.")
 
-        if getCurrentBranch() != "main":
-            try:
-                raise BranchWarning(branch=getCurrentBranch())
-            except BranchWarning as e:
-                error(e, traceback.format_exc(), "Not on main branch",
-                      "Please switch to the main branch to update the database.", level="WARNING")
-                raise
+        # if getCurrentBranch() != "main":
+        #     try:
+        #         raise BranchWarning(branch=getCurrentBranch())
+        #     except BranchWarning as e:
+        #         error(e, traceback.format_exc(), "Not on main branch",
+        #               "Please switch to the main branch to update the database.", level="WARNING")
+        #         raise
         
         if not conditions:
             raise ValueError("Conditions can't be empty.")

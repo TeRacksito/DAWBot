@@ -3,6 +3,7 @@
     "cSpell.words": [
         "Cópialo",
         "nextcord",
+        "plib",
         "verifícate"
     ],
     "[python]": {
@@ -10,5 +11,6 @@
     },
     "python.formatting.provider": "none",
     "python.languageServer": "Pylance",
-    "python.terminal.activateEnvInCurrentTerminal": true
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "autoDocstring.customTemplatePath": "./.vscode/custom_numpy.mustache"
 }
