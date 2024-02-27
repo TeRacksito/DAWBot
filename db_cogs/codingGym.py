@@ -2,6 +2,7 @@ import datetime
 from io import BytesIO
 import re
 import time
+from typing import Optional
 import zipfile
 from discord import DMChannel
 import nextcord
@@ -9,6 +10,7 @@ import os
 import platform
 from nextcord import Interaction, SlashOption
 from nextcord.ext import commands, tasks, ipc, application_checks
+from nextcord.ext.application_checks import ApplicationPrivateMessageOnly
 import shutil
 from bot import DawBot
 
@@ -43,14 +45,65 @@ EMBED_COLORS = {
     "PRACTICE_EXERCISE": [nextcord.Color.blue(), nextcord.Color.dark_blue()],
     "SPECIFIC_EXERCISE": [nextcord.Color.magenta(), nextcord.Color.dark_magenta()]
 }
-# class Dropdown (nextcord.ui.Select):
-#     def __init__(self, options: list[nextcord.SelectOption], *, placeholder: str = "Selecciona una opción...") -> None:
-#         super().__init__(placeholder=placeholder, options=options)
+class View(nextcord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.category = None
+        self.index = 0
+        self.last_useful_index = None
+        self.previous.disabled = True
+        self.next.disabled = True
+        self.cache = {}
+    
+    async def update(self, interaction: Interaction):
+        try:
+            exercises = self.cache[self.index]
+        except KeyError:
+            exercises = db.query(f"SELECT id, title, description FROM EXERCISE WHERE type LIKE '{EX_TYPES[self.category]}' ORDER BY timestamp DESC LIMIT 10 OFFSET {self.index * 10};")
+            self.cache[self.index] = exercises
+        
+        result = str()
 
-#     async def callback(self, interaction: Interaction):
-#         await interaction.response.send_message(f"Seleccionaste {self.values[0]}")
+        if not exercises:
+            self.next.disabled = True
+            if self.last_useful_index is not None:
+                self.index = self.last_useful_index + 1                
+            self.last_useful_index = -1 if self.index == 0 else self.index - 1
+            result = "No hay ejercicios para mostrar." if self.index == 0 else "No hay más ejercicios para mostrar."     
 
+        for exercise in exercises:
+            result += (
+                f"**{exercise[1]}**\n"
+                f"ID: **{exercise[0]}**\n"
+                f"Descripción: {exercise[2]}\n\n")
+        
+        embed = nextcord.Embed(title= f"Ejercicios de {self.category.capitalize()}", description= result, color= EMBED_COLORS[EX_TYPES[self.category]][0])
+        embed.set_footer(text= f"Página {self.index + 1}")
+        await interaction.response.edit_message(embed= embed, view= self)
+        
+    @nextcord.ui.button(label= "Anterior", style= nextcord.ButtonStyle.secondary)
+    async def previous(self, button: nextcord.ui.Button, interaction: Interaction):
+        self.index -= 1
+        if self.index == 0:
+            self.previous.disabled = True
+        if self.last_useful_index is None or self.index < self.last_useful_index:
+                self.next.disabled = False
+        await self.update(interaction)
 
+    @nextcord.ui.button(label= "Siguiente", style= nextcord.ButtonStyle.secondary)
+    async def next(self, button: nextcord.ui.Button, interaction: Interaction):
+        self.index += 1
+        if self.index > 0:
+            self.previous.disabled = False
+        await self.update(interaction)
+
+    @nextcord.ui.select(placeholder= "Selecciona una opción...", options= [nextcord.SelectOption(label= value.capitalize(), value= value) for value in EX_TYPES.keys()])
+    async def select(self, select: nextcord.ui.Select, interaction: Interaction):
+        self.next.disabled = False
+        self.cache.clear()
+        self.category = select.values[0]
+        self.index = 0
+        await self.update(interaction)
 
 class CodingGym(commands.Cog):
     
@@ -59,6 +112,117 @@ class CodingGym(commands.Cog):
         self.queue = PriorityQueue()
         self.weekly_schedule.start()
         self.daily_schedule.start()
+    
+    async def isdaw_member(self, interaction: Interaction):
+        user = interaction.user
+        guild: nextcord.Guild = await self.bot.fetch_guild(guild_id)
+        member = guild.get_member(user.id)
+        if not member:
+            return False
+        
+        member_role_id = int(db.select("BASIC_INFO", {"name": "member_role_id"})[0][1]) # type: ignore
+        
+        member_role = member.get_role(member_role_id)
+
+        if not member_role:
+            return False        
+
+        return True
+
+    async def iddaw_admin(self, interaction: Interaction):
+        user = interaction.user
+        guild: nextcord.Guild = await self.bot.fetch_guild(guild_id)
+        member = guild.get_member(user.id)
+        if not member:
+            return False
+        
+        admin_role_id = int(db.select("BASIC_INFO", {"name": "admin_role_id"})[0][1]) # type: ignore
+
+        admin_role = member.get_role(admin_role_id)
+
+        if not admin_role:
+            return False
+        
+        return True
+
+    @staticmethod
+    def generateTempPath(message):
+        if (platform.system() == "Windows"):
+            path = os.path.join(os.environ["TEMP"], "DawBotcodingGym")
+        
+        elif (platform.system() == "Linux"):
+            path = os.path.join("/tmp", "DawBotcodingGym")
+        else:
+            raise Exception("Unsupported OS")
+
+        if not os.path.exists(path):
+            os.makedirs(path)
+        
+        path = os.path.join(path, f"{message.id}")
+        n = 0
+
+        if not os.path.exists(path):
+            os.makedirs(path)
+        else:
+            while True:
+                n += 1
+                temp_path = path + f"_{n}"
+                if not os.path.exists(temp_path):
+                    os.makedirs(temp_path)
+                    path = temp_path
+                    break
+        return path
+
+    @staticmethod
+    def extract_class_and_main(java_code: str):
+        class_match = re.search(r'class\s+(\w+)', java_code)
+        if class_match:
+            class_name = class_match.group(1)
+        else:
+            return None
+
+        main_method_match = re.search(r'public\s+static\s+void\s+main\s*\(', java_code)
+        if main_method_match:
+            return class_name
+        else:
+            return None
+    
+    @staticmethod
+    def show_exercise(exercise: tuple):
+        embeds: list[nextcord.Embed] = []
+        file = None
+
+        colors = EMBED_COLORS[exercise[1]]
+
+        embeds.append(nextcord.Embed(title= f"Ejercicio `{exercise[2]}`", description= exercise[3], color= colors[0]))
+        embeds.append(nextcord.Embed(
+            title= "Información",
+            description= (
+                f"ID: {exercise[0]}\n"
+                f"Categoría: {REVERSE_EX_TYPES[exercise[1]].capitalize()}\n"
+                f"Dificultad: {REVERSE_DIFFICULTY[exercise[4]]}\n"
+            ),
+            color= colors[1]
+        ))
+        if exercise[5]:
+            embeds.append(nextcord.Embed(
+                title= "Contenido",
+                description= exercise[5],
+                color= colors[1]
+            ))
+        else:
+            zip_data = exercise[6]
+
+            zip_buffer = BytesIO(zip_data)
+
+            with zipfile.ZipFile(zip_buffer, "r") as zip_ref:                
+                for file_name in zip_ref.namelist():
+                    if file_name.startswith("content_") and file_name.endswith(".java"):
+                        file = nextcord.File(BytesIO(zip_ref.read(file_name)), filename= "Main.java")
+        
+
+        return (embeds, file)
+    
     
     @tasks.loop(time= datetime.time(hour= 8, minute=0))
     async def weekly_schedule(self):
@@ -157,7 +321,7 @@ class CodingGym(commands.Cog):
             db.query("DELETE FROM DAILY_SCHEDULE_LAST;")
             db.insert("DAILY_SCHEDULE_LAST", ["id"], [exercise_id])
 
-            
+        
         except Exception as e:
             print(e)
             return
@@ -181,6 +345,10 @@ class CodingGym(commands.Cog):
     async def schedule_now(self, interaction: Interaction,
                             id: int = SlashOption(name= "id", description= "ID del ejercicio.", required= True)):
         await interaction.response.defer(ephemeral= True)
+
+        if not await self.iddaw_admin(interaction):
+            await interaction.send("Debes ser administrador DAW verificado para usar este comando.", ephemeral= True)
+            return
 
         exercise = db.select("EXERCISE", {"id": id})
 
@@ -212,6 +380,10 @@ class CodingGym(commands.Cog):
         
         await interaction.response.defer(ephemeral= True)
 
+        if not await self.iddaw_admin(interaction):
+            await interaction.send("Debes ser administrador DAW verificado para usar este comando.", ephemeral= True)
+            return
+
         exercise = db.select("EXERCISE", {"id": id})
 
         if not exercise:
@@ -230,6 +402,10 @@ class CodingGym(commands.Cog):
                             priority: int = SlashOption(name= "prioridad", description= "Prioridad del ejercicio.", required= False, default= 5)):
         
         await interaction.response.defer(ephemeral= True)
+
+        if not await self.iddaw_admin(interaction):
+            await interaction.send("Debes ser administrador DAW verificado para usar este comando.", ephemeral= True)
+            return
 
         exercise = db.select("EXERCISE", {"id": id})
 
@@ -268,6 +444,10 @@ class CodingGym(commands.Cog):
                        ):
 
         await interaction.response.defer(ephemeral= True)
+
+        if not await self.iddaw_admin(interaction):
+            await interaction.send("Debes ser administrador DAW verificado para usar este comando.", ephemeral= True)
+            return
 
         category = EX_TYPES[category.lower()]
 
@@ -345,135 +525,17 @@ class CodingGym(commands.Cog):
         time.sleep(1)
         shutil.rmtree(path)
 
-    @staticmethod
-    def generateTempPath(message):
-        if (platform.system() == "Windows"):
-            path = os.path.join(os.environ["TEMP"], "DawBotcodingGym")
-        
-        elif (platform.system() == "Linux"):
-            path = os.path.join("/tmp", "DawBotcodingGym")
-        else:
-            raise Exception("Unsupported OS")
 
-        if not os.path.exists(path):
-            os.makedirs(path)
-        
-        path = os.path.join(path, f"{message.id}")
-        n = 0
-
-        if not os.path.exists(path):
-            os.makedirs(path)
-        else:
-            while True:
-                n += 1
-                temp_path = path + f"_{n}"
-                if not os.path.exists(temp_path):
-                    os.makedirs(temp_path)
-                    path = temp_path
-                    break
-        return path
-
-    @staticmethod
-    def extract_class_and_main(java_code: str):
-        class_match = re.search(r'class\s+(\w+)', java_code)
-        if class_match:
-            class_name = class_match.group(1)
-        else:
-            return None
-
-        main_method_match = re.search(r'public\s+static\s+void\s+main\s*\(', java_code)
-        if main_method_match:
-            return class_name
-        else:
-            return None
-    
-    @staticmethod
-    def show_exercise(exercise: tuple):
-        embeds: list[nextcord.Embed] = []
-        file = None
-
-        colors = EMBED_COLORS[exercise[1]]
-
-        embeds.append(nextcord.Embed(title= f"Ejercicio `{exercise[2]}`", description= exercise[3], color= colors[0]))
-        embeds.append(nextcord.Embed(
-            title= "Información",
-            description= (
-                f"ID: {exercise[0]}\n"
-                f"Categoría: {REVERSE_EX_TYPES[exercise[1]].capitalize()}\n"
-                f"Dificultad: {REVERSE_DIFFICULTY[exercise[4]]}\n"
-            ),
-            color= colors[1]
-        ))
-        if exercise[5]:
-            embeds.append(nextcord.Embed(
-                title= "Contenido",
-                description= exercise[5],
-                color= colors[1]
-            ))
-        else:
-            zip_data = exercise[6]
-
-            zip_buffer = BytesIO(zip_data)
-
-            with zipfile.ZipFile(zip_buffer, "r") as zip_ref:                
-                for file_name in zip_ref.namelist():
-                    if file_name.startswith("content_") and file_name.endswith(".java"):
-                        file = nextcord.File(BytesIO(zip_ref.read(file_name)), filename= "Main.java")
-        
-
-        return (embeds, file)
-    
-    async def isdm_interaction(self, interaction: Interaction):
-        if interaction.guild is not None or interaction.guild_id is not None:
-            return False
-        
-        if interaction.channel.type != nextcord.ChannelType.private:
-            return False
-
-        if interaction.permissions != nextcord.Permissions(0):
-            return False
-
-        return True
-    
-    async def isdaw_member(self, interaction: Interaction):
-        user = interaction.user
-        guild: nextcord.Guild = await self.bot.fetch_guild(guild_id)
-        member = guild.get_member(user.id)
-        if not member:
-            return False
-        
-        member_role_id = int(db.select("BASIC_INFO", {"name": "member_role_id"})[0][1]) # type: ignore
-        
-        member_role = member.get_role(member_role_id)
-
-        if not member_role:
-            return False        
-
-        return True
-
-    async def iddaw_admin(self, interaction: Interaction):
-        user = interaction.user
-        guild: nextcord.Guild = await self.bot.fetch_guild(guild_id)
-        member = guild.get_member(user.id)
-        if not member:
-            return False
-        
-        admin_role_id = int(db.select("BASIC_INFO", {"name": "admin_role_id"})[0][1]) # type: ignore
-
-        admin_role = member.get_role(admin_role_id)
-
-        if not admin_role:
-            return False
-        
-        return True
     
     @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                         name="resolver",
                         description="Resolver un ejercicio o test.")
-    @application_checks.dm_only()
     async def solve(self, interaction: Interaction):
         pass
     
+
+    
+        pass
     @solve.subcommand(name="ejercicio", description="Resolver un ejercicio.")
     @application_checks.dm_only()
     async def solve_ex(self, interaction: Interaction,
@@ -487,6 +549,10 @@ class CodingGym(commands.Cog):
                     url: str = SlashOption(name= "url", description= "ID o URL al mensaje con el contenido.", required= True)):
 
         await interaction.response.defer(ephemeral= True)
+
+        if not await self.isdaw_member(interaction):
+            await interaction.send("Debes ser miembro DAW verificado para usar este comando.", ephemeral= True)
+            return
 
         category = EX_TYPES[category.lower()]
         
@@ -580,6 +646,11 @@ class CodingGym(commands.Cog):
             return
         await interaction.send("¡El ejercicio ha sido enviado a la cola de revisión!\nEsto puede tardar varios minutos...", ephemeral= True)
 
+    @solve_ex.error # type: ignore
+    async def solve_ex_error(self, interaction: Interaction, error: nextcord.ApplicationError):
+        if isinstance(error, ApplicationPrivateMessageOnly):
+            await interaction.send("Este comando solo puede ser usado en mensajes privados.", ephemeral= True)
+        
 
     @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                             name="ver",
@@ -588,6 +659,7 @@ class CodingGym(commands.Cog):
         pass
 
     @see.subcommand(name="ejercicio", description="Ver un ejercicio específico.")
+    @application_checks.dm_only()
     async def see_ex(self, interaction: Interaction,
                     category: str = SlashOption(name= "categoría", description= "Categoría a la que pertenece.", required= True, choices= [
                               "Ejercicio semanal",
@@ -615,6 +687,23 @@ class CodingGym(commands.Cog):
             await interaction.send(embeds= embeds, file= file, ephemeral= True)
         else:
             await interaction.send(embeds= embeds, ephemeral= True)
+
+    @see_ex.error # type: ignore
+    async def see_ex_error(self, interaction: Interaction, error: nextcord.ApplicationError):
+        if isinstance(error, ApplicationPrivateMessageOnly):
+            await interaction.send("Este comando solo puede ser usado en mensajes privados.", ephemeral= True)
+    
+    @see.subcommand(name="lista", description="Ver una lista de ejercicios o tests.")
+    async def see_list(self, interaction: Interaction):
+        pass
+
+    @see_list.subcommand(name="ejercicios", description="Ver una lista de ejercicios.")
+    @application_checks.dm_only()
+    async def see_list_ex(self, interaction: Interaction):
+        
+        view = View()
+        embed = nextcord.Embed(title= f"Lista de ejercicios.", description= "_Utiliza los botones para navegar_", color= nextcord.Color.blue())
+        await interaction.response.send_message(ephemeral= True, view= view, embed= embed)
 
     @ipc.server.route()
     async def status(self, _):
