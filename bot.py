@@ -115,7 +115,7 @@ if __name__ == "__main__":
         CONNECTION_TEST = None
 
     if CONNECTION_TEST is not None:
-        os.environ["guild_id"] = str(int(CONNECTION_TEST.select("BASIC_INFO", {"name": "guild_id"})[0][1]))
+        os.environ["guild_id"] = str(int(CONNECTION_TEST.select("BASIC_INFO", {"name": "guild_id"})[0][1])) # type: ignore
     else:
         os.environ["guild_id"] = "1156345547788136539"
 

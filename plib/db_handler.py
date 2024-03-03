@@ -1,10 +1,30 @@
 import mysql.connector
+from mysql.connector.errors import OperationalError
 from plib.utils.general import getCurrentBranch
 from plib.utils.custom_exceptions import BranchWarning
 from plib.terminal import error
 import traceback
 import json
 
+
+def retry_connection(func):
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except OperationalError as e:
+            if "MySQL Connection not available" in str(e):
+                if self.attempts > 4:
+                    error(e, traceback.format_exc(), "Database connection failed",
+                          "Please check your internet connection and try again.", level="ERROR")
+                    raise
+                # Retry the connection
+                self.connect()
+                # Retry the original method
+                return func(self, *args, **kwargs)
+            else:
+                # If it's a different OperationalError, raise it
+                raise
+    return wrapper
 
 class Database:
     """
@@ -16,6 +36,11 @@ class Database:
         If the file TOKEN.json does not exist or does not contain the database credentials.
     """
     def __init__(self) -> None:
+        self.mainDb = None
+        self.connect()
+        self.attempts = 0
+    
+    def connect(self) -> None:
         try:
             with open("TOKEN.json", encoding="utf-8") as file:
                 data = json.load(file)
@@ -35,7 +60,8 @@ class Database:
                   "Please make sure that the file TOKEN.json exists and contains the database credentials.", level="WARNING")
             self.mainDb = None
             raise
-
+        
+    @retry_connection
     def _checkTable(self, table: str):
         """
         Checks if a table exists in the database.
@@ -62,6 +88,7 @@ class Database:
 
         return False
 
+    @retry_connection
     def insert(self, table: str, names: list, values: list, retrieve_id: bool = False):
         """
         Inserts a register into a table.
@@ -121,7 +148,8 @@ class Database:
         print(cursor.rowcount, "record(s) affected")
         if retrieve_id:
             return cursor.lastrowid
-
+    
+    @retry_connection
     def select(self, table: str, conditions: dict = None, fields: list = None):
         """
         Selects registers from a table.        
@@ -172,7 +200,8 @@ class Database:
         payload = cursor.fetchall()
 
         return payload
-
+    
+    @retry_connection
     def query(self, query: str):
         """
         Executes a custom query.
@@ -196,6 +225,7 @@ class Database:
 
         return payload
 
+    @retry_connection
     def update(self, table: str, key_name: str, key_value: str, value_name: str, value_value: int):
         """
         Updates a field value from a register.
@@ -244,6 +274,7 @@ class Database:
 
         print(cursor.rowcount, "record(s) affected")
 
+    @retry_connection
     def delete(self, table: str, conditions: dict):
         """
         Deletes a register or registers from a table.

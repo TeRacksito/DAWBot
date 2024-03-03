@@ -1,7 +1,10 @@
 import datetime
 from io import BytesIO
+import io
+import json
 import re
 import time
+from tkinter import N
 from typing import Optional
 import zipfile
 from discord import DMChannel
@@ -31,10 +34,10 @@ DIFFICULTY = {
 REVERSE_DIFFICULTY = {v: k for k, v in DIFFICULTY.items()}
 
 EX_TYPES = {
-    "ejercicio semanal": "WEEK_EXERCISE",
-    "ejercicio diario": "DAILY_EXERCISE",
-    "ejercicio de práctica": "PRACTICE_EXERCISE",
-    "ejercicio específico": "SPECIFIC_EXERCISE"
+    "ejercicio semanal":        "WEEK_EXERCISE",
+    "ejercicio diario":         "DAILY_EXERCISE",
+    "ejercicio de práctica":    "PRACTICE_EXERCISE",
+    "ejercicio específico":     "SPECIFIC_EXERCISE"
 }
 
 REVERSE_EX_TYPES = {v: k for k, v in EX_TYPES.items()}
@@ -43,11 +46,14 @@ EMBED_COLORS = {
     "WEEK_EXERCISE": [nextcord.Color.gold(), nextcord.Color.dark_gold()],
     "DAILY_EXERCISE": [nextcord.Color.teal(), nextcord.Color.dark_teal()],
     "PRACTICE_EXERCISE": [nextcord.Color.blue(), nextcord.Color.dark_blue()],
-    "SPECIFIC_EXERCISE": [nextcord.Color.magenta(), nextcord.Color.dark_magenta()]
+    "SPECIFIC_EXERCISE": [nextcord.Color.magenta(), nextcord.Color.dark_magenta()],
+    "Fácil": [nextcord.Color.green(), nextcord.Color.dark_green()],
+    "Medio": [nextcord.Color.orange(), nextcord.Color.dark_orange()],
+    "Difícil": [nextcord.Color.red(), nextcord.Color.dark_red()]
 }
-class View(nextcord.ui.View):
+class ListView(nextcord.ui.View):
     def __init__(self):
-        super().__init__()
+        super().__init__(timeout=600)
         self.category = None
         self.index = 0
         self.last_useful_index = None
@@ -59,7 +65,7 @@ class View(nextcord.ui.View):
         try:
             exercises = self.cache[self.index]
         except KeyError:
-            exercises = db.query(f"SELECT id, title, description FROM EXERCISE WHERE type LIKE '{EX_TYPES[self.category]}' ORDER BY timestamp DESC LIMIT 10 OFFSET {self.index * 10};")
+            exercises = db.query(f"SELECT id, title, description FROM EXERCISE WHERE type LIKE '{EX_TYPES[self.category]}' ORDER BY timestamp DESC LIMIT 10 OFFSET {self.index * 10};") # type: ignore
             self.cache[self.index] = exercises
         
         result = str()
@@ -77,7 +83,7 @@ class View(nextcord.ui.View):
                 f"ID: **{exercise[0]}**\n"
                 f"Descripción: {exercise[2]}\n\n")
         
-        embed = nextcord.Embed(title= f"Ejercicios de {self.category.capitalize()}", description= result, color= EMBED_COLORS[EX_TYPES[self.category]][0])
+        embed = nextcord.Embed(title= f"Ejercicios de {self.category.capitalize()}", description= result, color= EMBED_COLORS[EX_TYPES[self.category]][0]) # type: ignore
         embed.set_footer(text= f"Página {self.index + 1}")
         await interaction.response.edit_message(embed= embed, view= self)
         
@@ -105,6 +111,67 @@ class View(nextcord.ui.View):
         self.index = 0
         await self.update(interaction)
 
+class TestView(nextcord.ui.View):
+    def __init__(self, choices: list[dict[str, str | bool]], embeds: list[nextcord.Embed], multiple: bool, *args, **kwargs) -> None:
+        super().__init__(timeout=600, *args, **kwargs)
+
+        self.choices = choices
+        self.embeds = embeds
+
+        options = [nextcord.SelectOption(label= choice["text"], value= str(index)) for index, choice in enumerate(choices)] # type: ignore
+
+        if multiple:
+            self.select.placeholder = "Selecciona una o varias opciones..."
+            self.select.min_values = 1
+            self.select.max_values = len(options)
+        else:
+            self.select.placeholder = "Selecciona una opción..."
+        
+
+        self.select.options = options
+    
+    @nextcord.ui.select()
+    async def select(self, select: nextcord.ui.Select, interaction: Interaction):
+        correct_choices = set(index for index in range(len(self.choices)) if self.choices[index]["correct"]) # type: ignore
+
+        result = dict()
+
+        result["correct"] = [int(index) for index in select.values if int(index) in correct_choices]
+        result["incorrect"] = [int(index) for index in select.values if int(index) not in correct_choices]
+
+        text_hint = str()
+        for part in result.values():
+            for index in part:
+                text_hint += f"- {self.choices[index]['text']}: {self.choices[index]['hint']}\n"
+        
+        title = str()
+
+        nT = len(self.choices)                      # total number of choices
+        nG = len(correct_choices)                   # number of correct choices
+        nuG = len(result["correct"])                # number of correct guesses
+        nuB = len(result["incorrect"])              # number of incorrect guesses
+        score = (nuG-(nT-(nT-nuB))/(nG))/(nG)
+
+        if score < 0:
+            score = 0
+        
+        if len(result["correct"]) == len(correct_choices) and len(result["incorrect"]) == 0:
+            title = "¡Correcto!"
+        elif len(result["correct"]) == 0:
+            title = "¡Incorrecto!"
+        else:
+            title = "¡Parcialmente correcto!"
+        
+        embed = nextcord.Embed(
+            title= title,
+            description= (
+                f"**Puntaje:** {score * 100}% ({len(result['correct'])}/{len(correct_choices)})\n"
+                f"**Pistas:**\n{text_hint}"
+            ),
+            color= nextcord.Color.blue())
+
+        self.select.disabled = True
+        await interaction.response.edit_message(embeds= self.embeds + [embed], view= self)
 class CodingGym(commands.Cog):
     
     def __init__(self, bot: DawBot) -> None:
@@ -116,7 +183,9 @@ class CodingGym(commands.Cog):
     async def isdaw_member(self, interaction: Interaction):
         user = interaction.user
         guild: nextcord.Guild = await self.bot.fetch_guild(guild_id)
-        member = guild.get_member(user.id)
+        if user is None:
+            return False
+        member = await guild.fetch_member(user.id)
         if not member:
             return False
         
@@ -132,7 +201,9 @@ class CodingGym(commands.Cog):
     async def iddaw_admin(self, interaction: Interaction):
         user = interaction.user
         guild: nextcord.Guild = await self.bot.fetch_guild(guild_id)
-        member = guild.get_member(user.id)
+        if user is None:
+            return False
+        member = await guild.fetch_member(user.id)
         if not member:
             return False
         
@@ -223,28 +294,51 @@ class CodingGym(commands.Cog):
 
         return (embeds, file)
     
-    
-    @tasks.loop(time= datetime.time(hour= 8, minute=0))
-    async def weekly_schedule(self):
-        try:
+    @staticmethod
+    def show_test(test: tuple):
+        id = test[0]
+        title = test[1]
+        difficulty = REVERSE_DIFFICULTY[test[2]]
+        question = test[3]
+        data = json.loads(test[4])
+
+        choices: list[dict[str, str | bool]] = data["choices"]
+        embeds: list[nextcord.Embed] = []
+
+        colors = EMBED_COLORS[difficulty]
+
+        description = f"## {question}\n\n"
+        description += "\n".join([f"- {choice['text']}" for choice in choices])
+
+        embeds.append(nextcord.Embed(title= f"Test `{title}`", description= description, color= colors[0]))
+
+        embeds.append(nextcord.Embed(
+            description= (
+                f"ID: {id}\n"
+                f"Dificultad: {difficulty}\n"
+            ),
+            color= colors[1]
+        ))
+
+        return embeds
         
-            now = datetime.datetime.now()
-
-            if not now.weekday() == 3:
-                return
-
-            exercise_id = db.query("SELECT id FROM WEEKLY_SCHEDULE ORDER BY priority, timestamp ASC LIMIT 1;")
-            last_ex = db.query("SELECT * FROM WEEKLY_SCHEDULE_LAST;")
-
-            if last_ex:
-                last_time: datetime.datetime = last_ex[0][1] # type: ignore
-
-                if last_time.date() == now.date():
+    @tasks.loop(time= datetime.time(hour= 8, minute=0))
+    async def weekly_schedule(self, force: Optional[bool] = False):
+        try:
+            if not force:
+                now = datetime.datetime.now()
+                if not now.weekday() == 3:
                     return
 
+                last_ex = db.query("SELECT * FROM WEEKLY_SCHEDULE_LAST;")
+                if last_ex:
+                    last_time: datetime.datetime = last_ex[0][1] # type: ignore
+                    if last_time.date() == now.date():
+                        return
 
+            exercise_id = db.query("SELECT id FROM WEEKLY_SCHEDULE ORDER BY priority, timestamp ASC LIMIT 1;")
             if not exercise_id:
-                return
+                return 1
             
             exercise_id = exercise_id[0][0]
 
@@ -252,11 +346,11 @@ class CodingGym(commands.Cog):
 
             channel_id = int(db.select("BASIC_INFO", {"name": "week_ex_channel"})[0][1]) # type: ignore
 
-            channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id)
+            channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id) # type: ignore
 
             if not channel:
                 print("No se encontró el canal especificado.")
-                return
+                return 2
             
             embeds, file = self.show_exercise(exercise)
         
@@ -268,35 +362,35 @@ class CodingGym(commands.Cog):
             db.delete("WEEKLY_SCHEDULE", {"id": exercise_id})
             db.query("DELETE FROM WEEKLY_SCHEDULE_LAST;")
             db.insert("WEEKLY_SCHEDULE_LAST", ["id"], [exercise_id])
+            return 0
 
             
         except Exception as e:
             print(e)
-            return
+            return 3
 
     @weekly_schedule.before_loop
     async def weekly_schedule_wait(self):
         await self.bot.wait_until_ready()
-    
 
-    @tasks.loop(time= [datetime.time(hour= 8, minute=0), datetime.time(hour= 18, minute=40)])
-    async def daily_schedule(self):
+    @tasks.loop(time= [datetime.time(hour= 8, minute=0), datetime.time(hour= 17, minute=20)])
+    async def daily_schedule(self, force: Optional[bool] = False):
         try:
-        
-            now = datetime.datetime.now()
+            if not force:        
+                now = datetime.datetime.now()
+
+                last_ex = db.query("SELECT * FROM DAILY_SCHEDULE_LAST;")
+
+                if last_ex:
+                    last_time: datetime.datetime = last_ex[0][1] # type: ignore
+
+                    if last_time.date() == now.date():
+                        if now.hour - last_time.hour < 9:
+                            return
 
             exercise_id = db.query("SELECT id FROM DAILY_SCHEDULE ORDER BY priority, timestamp ASC LIMIT 1;")
-            last_ex = db.query("SELECT * FROM DAILY_SCHEDULE_LAST;")
-
-            if last_ex:
-                last_time: datetime.datetime = last_ex[0][1] # type: ignore
-
-                if last_time.date() == now.date():
-                    if now.hour - last_time.hour < 9:
-                        return
-
             if not exercise_id:
-                return
+                return 1
             
             exercise_id = exercise_id[0][0]
 
@@ -304,11 +398,11 @@ class CodingGym(commands.Cog):
 
             channel_id = int(db.select("BASIC_INFO", {"name": "day_ex_channel"})[0][1]) # type: ignore
 
-            channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id)
+            channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id) # type: ignore
 
             if not channel:
-                print("No se encontró el canal especificado.")
-                return
+                print(f"No se encontró el canal especificado --> {channel_id}")
+                return 2
             
             embeds, file = self.show_exercise(exercise)
         
@@ -320,17 +414,66 @@ class CodingGym(commands.Cog):
             db.delete("DAILY_SCHEDULE", {"id": exercise_id})
             db.query("DELETE FROM DAILY_SCHEDULE_LAST;")
             db.insert("DAILY_SCHEDULE_LAST", ["id"], [exercise_id])
+            return 0
 
-        
         except Exception as e:
             print(e)
-            return
+            return 3
 
     @daily_schedule.before_loop
     async def daily_schedule_wait(self):
         await self.bot.wait_until_ready()
+ 
+    @tasks.loop(time= [datetime.time(hour= 8, minute=0), datetime.time(hour= 17, minute=20)])
+    async def test_daily_schedule(self, force: Optional[bool] = False):
+        try:
+            if not force:
+                now = datetime.datetime.now()
 
-    
+                last_test = db.query("SELECT * FROM TEST_DAILY_SCHEDULE_LAST;")
+
+                if last_test:
+                    last_time: datetime.datetime = last_test[0][1] # type: ignore
+
+                    if last_time.date() == now.date():
+                        if now.hour - last_time.hour < 9:
+                            return
+
+            test_id = db.query("SELECT id FROM TEST_DAILY_SCHEDULE ORDER BY priority, timestamp ASC LIMIT 1;")
+            if not test_id:
+                return 1
+            
+            test_id = test_id[0][0]
+
+            test = db.select("TEST", {"id": test_id})[0]
+
+            channel_id = int(db.select("BASIC_INFO", {"name": "day_test_channel"})[0][1]) # type: ignore
+
+            channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id) # type: ignore
+
+            if not channel:
+                print(f"No se encontró el canal especificado --> {channel_id}")
+                return 2
+            
+            embeds = self.show_test(test)
+
+            await channel.send("@everyone", embeds= embeds)
+            
+            db.delete("TEST_DAILY_SCHEDULE", {"id": test_id})
+            db.query("DELETE FROM TEST_DAILY_SCHEDULE_LAST;")
+            db.insert("TEST_DAILY_SCHEDULE_LAST", ["id"], [test_id])
+            return 0
+
+        
+        except Exception as e:
+            print(e)
+            return 3
+
+    @daily_schedule.before_loop
+    async def test_daily_schedule_wait(self):
+        await self.bot.wait_until_ready()
+
+
     @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                             name="programar",
                             description="Description")
@@ -340,7 +483,7 @@ class CodingGym(commands.Cog):
     @schedule.subcommand(name="ejercicio", description="Programar ejercicios.")
     async def sc_exercise(self, interaction: Interaction):
         pass
-
+    
     @sc_exercise.subcommand(name="ahora", description="Programa un ejercicio ahora.")
     async def schedule_now(self, interaction: Interaction,
                             id: int = SlashOption(name= "id", description= "ID del ejercicio.", required= True)):
@@ -360,7 +503,7 @@ class CodingGym(commands.Cog):
 
         channel_id = int(db.select("BASIC_INFO", {"name": "now_ex_channel"})[0][1]) # type: ignore
 
-        channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id)
+        channel: nextcord.TextChannel = await self.bot.fetch_channel(channel_id) # type: ignore
 
         if not channel:
             await interaction.send("No se encontró el canal especificado.", ephemeral= True)
@@ -372,6 +515,8 @@ class CodingGym(commands.Cog):
             await channel.send("@everyone", embeds= embeds, file= file)
         else:
             await channel.send("@everyone", embeds= embeds)
+        
+        await interaction.send(f"¡Ejercicio `{exercise[2]}` programado satisfactoriamente!", ephemeral= True)
     
     @sc_exercise.subcommand(name="semanal", description="Programa un ejercicio semanal.")
     async def schedule_weekly(self, interaction: Interaction,
@@ -419,6 +564,93 @@ class CodingGym(commands.Cog):
 
         await interaction.send(f"¡Ejercicio `{exercise[2]}` programado satisfactoriamente!", ephemeral= True)
 
+    @schedule.subcommand(name="test", description="Programar tests.")
+    async def sc_test(self, interaction: Interaction):
+        pass
+
+    @sc_test.subcommand(name="diario", description="Programa un test diario.")
+    async def schedule_test_daily(self, interaction: Interaction,
+                            id: int = SlashOption(name= "id", description= "ID del test.", required= True),
+                            priority: int = SlashOption(name= "prioridad", description= "Prioridad del test.", required= False, default= 5)):
+        
+        await interaction.response.defer(ephemeral= True)
+
+        if not await self.iddaw_admin(interaction):
+            await interaction.send("Debes ser administrador DAW verificado para usar este comando.", ephemeral= True)
+            return
+
+        test = db.select("TEST", {"id": id})
+
+        if not test:
+            await interaction.send("No se encontró el test especificado.", ephemeral= True)
+            return
+
+        test = test[0]
+        
+        db.insert("TEST_DAILY_SCHEDULE", ["id", "priority"], [id, priority])
+
+        await interaction.send(f"¡Test `{test[1]}` programado satisfactoriamente!", ephemeral= True)
+    
+
+    @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
+                            name="empujar",
+                            description="Empujar un ejercicio o test para ser publicado.")
+    async def push(self, interaction: Interaction):
+        pass
+
+    @push.subcommand(name="ejercicio", description="Empujar un ejercicio.")
+    async def push_exercise(self, interaction: Interaction):
+        pass
+
+    @push_exercise.subcommand(name="semanal", description="Empujar un ejercicio semanal.")
+    async def push_weekly(self, interaction: Interaction):
+        result = await self.weekly_schedule(force= True)
+
+        if result is None or result == 3:
+            await interaction.send("Hubo un problema al intentar empujar el ejercicio.", ephemeral= True)
+            return
+        elif result == 1:
+            await interaction.send("No hay ejercicios programados", ephemeral= True)
+            return
+        elif result == 2:
+            await interaction.send("No se encontró el canal especificado.", ephemeral= True)
+            return
+        
+        await interaction.send("¡Ejercicio empujado satisfactoriamente!", ephemeral= True)
+
+    @push_exercise.subcommand(name="diario", description="Empujar un ejercicio diario.")
+    async def push_daily(self, interaction: Interaction):
+        result = await self.daily_schedule(force= True)
+
+        if result is None or result == 3:
+            await interaction.send("Hubo un problema al intentar empujar el ejercicio.", ephemeral= True)
+            return
+        elif result == 1:
+            await interaction.send("No hay ejercicios programados", ephemeral= True)
+            return
+        elif result == 2:
+            await interaction.send("No se encontró el canal especificado.", ephemeral= True)
+            return
+        
+        await interaction.send("¡Ejercicio empujado satisfactoriamente!", ephemeral= True)
+    
+    @push.subcommand(name="test", description="Empujar un test.")
+    async def push_test(self, interaction: Interaction):
+        result = await self.test_daily_schedule(force= True)
+
+        if result is None or result == 3:
+            await interaction.send("Hubo un problema al intentar empujar el test.", ephemeral= True)
+            return
+        elif result == 1:
+            await interaction.send("No hay tests programados", ephemeral= True)
+            return
+        elif result == 2:
+            await interaction.send("No se encontró el canal especificado.", ephemeral= True)
+            return
+        
+        await interaction.send("¡Test empujado satisfactoriamente!", ephemeral= True)
+
+
     @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                             name="crear",
                             description="Description")
@@ -454,7 +686,7 @@ class CodingGym(commands.Cog):
         if ("/" in url):
             url = url.split("/")[-1]
 
-        message: nextcord.Message = await interaction.channel.fetch_message(int(url))
+        message: nextcord.Message = await interaction.channel.fetch_message(int(url)) # type: ignore
 
         files = message.attachments
         
@@ -525,7 +757,71 @@ class CodingGym(commands.Cog):
         time.sleep(1)
         shutil.rmtree(path)
 
+    @create.subcommand(name="test", description="Crea un test nuevo.")
+    async def create_test(self, interaction: Interaction,
+                       title: str = SlashOption(name= "título", description= "Título del test.", required= True),
+                       url: str = SlashOption(name= "url", description= "URL al mensaje con el contenido.", required= True),
+                       difficulty: str = SlashOption(name= "dificultad", description= "Dificultad del ejercicio.", required= True, choices= [
+                              "Fácil",
+                              "Medio",
+                              "Difícil"
+                              ]),
+                       ):
 
+        await interaction.response.defer(ephemeral= True)
+
+        if not await self.iddaw_admin(interaction):
+            await interaction.send("Debes ser administrador DAW verificado para usar este comando.", ephemeral= True)
+            return
+
+        if ("/" in url):
+            url = url.split("/")[-1]
+
+        message: nextcord.Message = await interaction.channel.fetch_message(int(url)) # type: ignore
+
+        files = message.attachments
+
+        if not files:
+            await interaction.send("No hay archivos que definan el test.", ephemeral= True)
+            return
+
+        if len(files) > 1:
+            await interaction.send("Solo se permite un archivo por test.", ephemeral= True)
+            return
+        
+        file = files[0]
+
+        if not file.content_type == "application/json; charset=utf-8":
+            await interaction.send("El archivo debe ser un JSON.", ephemeral= True)
+            return
+
+        if not message.content:
+            await interaction.send("No se encuentra la pregunta del test.", ephemeral= True)
+            return
+        
+        content = message.content
+
+        file_data = io.BytesIO(await file.read())
+        
+        file_content = file_data.read().decode("utf-8")
+        
+        id = db.insert("TEST",
+                       ["title", "difficulty", "question", "data"],
+                       [title, DIFFICULTY[difficulty], message.content, file_content],
+                       retrieve_id= True)
+
+        embed1 = nextcord.Embed(title= f"El test `{title}` ha sido creado satisfactoriamente.",
+                                description= (
+                                    f"Dificultad: **{difficulty}**\n"
+                                    f"ID: **{id}**\n"
+                                ), color= nextcord.Color.blue())
+        embed2 = nextcord.Embed(title= "Contenido", description= message.content if message.content else "No hay contenido en bruto.", color= nextcord.Color.blue())
+
+        embed3 = nextcord.Embed(title= "Archivos adjuntos",
+                                description= "\n".join([f"[{file.filename}]({file.url})" for file in files]) if files else "No hay archivos adjuntos.",
+                                color= nextcord.Color.blue())
+
+        await interaction.send(embeds= [embed1, embed2, embed3], ephemeral= True)
     
     @nextcord.slash_command(guild_ids=[guild_id], force_global=True,
                         name="resolver",
@@ -533,9 +829,44 @@ class CodingGym(commands.Cog):
     async def solve(self, interaction: Interaction):
         pass
     
+    @solve.subcommand(name="test", description="Resolver un test.")
+    @application_checks.dm_only()
+    async def solve_test(self, interaction: Interaction,
+                         id: int = SlashOption(name= "id", description= "ID del test.", required= True)):
+        await interaction.response.defer(ephemeral= True)
 
+        if not await self.isdaw_member(interaction):
+            await interaction.send("Debes ser miembro DAW verificado para usar este comando.", ephemeral= True)
+            return
+        
+        test = db.select("TEST", {"id": id})
+
+        if not test:
+            await interaction.send("No se encontró el test especificado.", ephemeral= True)
+            return
+        
+        test = test[0]
+
+        title = test[1]
+        difficulty = REVERSE_DIFFICULTY[test[2]] # type: ignore
+        question = test[3]
+        data = json.loads(test[4]) # type: ignore
+
+        choices = data["choices"]
+        multiple = data["multiple"]
+
+        embeds = self.show_test(test)
+
+        view = TestView(choices= choices, embeds= embeds, multiple= multiple)
+
+        await interaction.send(ephemeral= True, embeds= embeds, view= view)
     
-        pass
+    @solve_test.error # type: ignore
+    async def solve_test_error(self, interaction: Interaction, error: nextcord.ApplicationError):
+        if isinstance(error, ApplicationPrivateMessageOnly):
+            await interaction.send("Este comando solo puede ser usado en mensajes privados.", ephemeral= True)
+        
+    
     @solve.subcommand(name="ejercicio", description="Resolver un ejercicio.")
     @application_checks.dm_only()
     async def solve_ex(self, interaction: Interaction,
@@ -566,7 +897,7 @@ class CodingGym(commands.Cog):
             return
         
         try:
-            message: nextcord.Message = await interaction.channel.fetch_message(int(url))
+            message: nextcord.Message = await interaction.channel.fetch_message(int(url)) # type: ignore
         except nextcord.errors.NotFound:
             await interaction.send("No se encontró el mensaje especificado.", ephemeral= True)
             return
@@ -701,7 +1032,7 @@ class CodingGym(commands.Cog):
     @application_checks.dm_only()
     async def see_list_ex(self, interaction: Interaction):
         
-        view = View()
+        view = ListView()
         embed = nextcord.Embed(title= f"Lista de ejercicios.", description= "_Utiliza los botones para navegar_", color= nextcord.Color.blue())
         await interaction.response.send_message(ephemeral= True, view= view, embed= embed)
 

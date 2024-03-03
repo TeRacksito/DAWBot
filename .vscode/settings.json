@@ -2,8 +2,11 @@
     "python.analysis.typeCheckingMode": "basic",
     "cSpell.words": [
         "Cópialo",
+        "iddaw",
+        "isdaw",
         "nextcord",
         "plib",
+        "Puntaje",
         "verifícate"
     ],
     "[python]": {
