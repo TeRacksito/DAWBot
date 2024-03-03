@@ -89,8 +89,9 @@ class ListView(nextcord.ui.View):
     @nextcord.ui.button(label= "Anterior", style= nextcord.ButtonStyle.secondary)
     async def previous(self, button: nextcord.ui.Button, interaction: Interaction):
         self.index -= 1
-        if self.index == 0:
+        if self.index <= 0:
             self.previous.disabled = True
+            self.index = 0
         if self.last_useful_index is None or self.index < self.last_useful_index:
                 self.next.disabled = False
         await self.update(interaction)
