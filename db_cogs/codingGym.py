@@ -4,7 +4,6 @@ import io
 import json
 import re
 import time
-from tkinter import N
 from typing import Optional
 import zipfile
 from discord import DMChannel
