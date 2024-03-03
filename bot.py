@@ -49,8 +49,9 @@ class DawBot(commands.Bot):
     
     def getConnection(self):
         try:
-            self.conn.close()
-        except Exception:
+            if self.conn is not None and not self.conn.closed:
+                return self.conn
+        except AttributeError:
             pass
         
         address = ('localhost', 6000)
