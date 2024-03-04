@@ -50,8 +50,9 @@ class DawBot(commands.Bot):
     def getConnection(self):
         address = ('localhost', 6000)
         try:
-            self.conn.send("status")
-            status = self.conn.recv()
+            if self.conn is not None:
+                self.conn.send("status")
+                status = self.conn.recv()
 
             if status == "Ok":
                 return self.conn
