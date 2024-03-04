@@ -54,8 +54,8 @@ class DawBot(commands.Bot):
                 self.conn.send("status")
                 status = self.conn.recv()
 
-            if status == "Ok":
-                return self.conn
+                if status == "Ok":
+                    return self.conn
 
             self.conn = Client(address, authkey=ipc_key.encode())
             return self.conn
