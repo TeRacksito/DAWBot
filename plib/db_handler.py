@@ -38,6 +38,7 @@ class Database:
     def __init__(self) -> None:
         self.mainDb = None
         self.connect()
+        self._configure()
         self.attempts = 0
     
     def connect(self) -> None:
@@ -55,12 +56,17 @@ class Database:
                 password= password,
                 database= database
             )
+            
         except (KeyError, FileNotFoundError) as e:
             error(e, traceback.format_exc(), "Database credentials not found",
                   "Please make sure that the file TOKEN.json exists and contains the database credentials.", level="WARNING")
             self.mainDb = None
             raise
-        
+    
+    def _configure(self):
+        cursor = self.mainDb.cursor()
+
+        cursor.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
     @retry_connection
     def _checkTable(self, table: str):
         """
