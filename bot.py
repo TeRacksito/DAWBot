@@ -48,14 +48,14 @@ class DawBot(commands.Bot):
             loadCogs(self, "db_cogs")
     
     def getConnection(self):
-        try:
-            if self.conn is not None and not self.conn.closed:
-                return self.conn
-        except AttributeError:
-            pass
-        
         address = ('localhost', 6000)
         try:
+            self.conn.send("status")
+            status = self.conn.recv()
+
+            if status == "Ok":
+                return self.conn
+
             self.conn = Client(address, authkey=ipc_key.encode())
             return self.conn
         except ConnectionRefusedError:
