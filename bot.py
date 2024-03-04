@@ -71,6 +71,12 @@ class DawBot(commands.Bot):
             print("codingGym connection has been reset. Make sure the codingGym is running.")
             print("---------------------------------------------------------------")
             return None
+        except AttributeError:
+            self.conn = None
+            print("---------------------------------------------------------------")
+            print("codingGym connection has not been initialized. Make sure the codingGym is running.")
+            print("---------------------------------------------------------------")
+            return None
 
 
     async def on_ready(self):
