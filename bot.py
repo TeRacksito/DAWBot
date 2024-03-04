@@ -51,11 +51,7 @@ class DawBot(commands.Bot):
         address = ('localhost', 6000)
         try:
             if self.conn is not None:
-                self.conn.send("status")
-                status = self.conn.recv()
-
-                if status == "Ok":
-                    return self.conn
+                self.conn.close()
 
             self.conn = Client(address, authkey=ipc_key.encode())
             return self.conn
