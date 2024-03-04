@@ -955,7 +955,7 @@ class CodingGym(commands.Cog):
 
         attempts = 0
 
-        while attempts < 3:
+        while attempts < 10:
 
             conn = self.bot.getConnection()
             
@@ -972,7 +972,7 @@ class CodingGym(commands.Cog):
             except (ConnectionResetError, ConnectionAbortedError, AttributeError):
                 self.bot.conn = None
                 attempts += 1
-        if attempts >= 3:
+        if attempts >= 10:
             await interaction.send("Parece ser que el servidor de ejercicios no está disponible en este momento. Inténtalo de nuevo.", ephemeral= True)
             return
         await interaction.send("¡El ejercicio ha sido enviado a la cola de revisión!\nEsto puede tardar varios minutos...", ephemeral= True)
