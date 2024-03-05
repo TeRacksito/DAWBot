@@ -1081,7 +1081,7 @@ class CodingGym(commands.Cog):
                 f"Tipo de proyecto detectado: {data['project_type']}\n"
                 f"Categoría: {category}\n"
                 f"Estado: {'Correcto' if not data['broken'] else 'Incorrecto'}\n"
-                f"Variación abstracta: {data['abstraction_score'] + '%' if data['abstraction_score'] is not None else 'Improcedente'}\n"
+                f"Variación abstracta: {str(data['abstraction_score']) + '%' if data['abstraction_score'] is not None else 'Improcedente'}\n"
                 f"{('Estructuras prohibidas usadas: ' if data['banned_found'] else 'No se detectaron estructuras prohibidas.') if data['abstraction_score'] is not None else ''}" + (''.join([f"\n- `{value}`" for value in data['banned_found']]) if data['banned_found'] else '')
             ),
             color= nextcord.Color.blue()
