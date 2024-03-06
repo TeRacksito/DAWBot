@@ -38,7 +38,6 @@ class Database:
     def __init__(self) -> None:
         self.mainDb = None
         self.connect()
-        self._configure()
         self.attempts = 0
     
     def connect(self) -> None:
@@ -62,13 +61,9 @@ class Database:
                   "Please make sure that the file TOKEN.json exists and contains the database credentials.", level="WARNING")
             self.mainDb = None
             raise
-    
-    def _configure(self):
-        cursor = self.mainDb.cursor()
 
-        cursor.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
     @retry_connection
-    def _checkTable(self, table: str):
+    def _checkTable(self, table: str, attempt: int = 0):
         """
         Checks if a table exists in the database.
 
@@ -82,17 +77,25 @@ class Database:
         `bool`
             True or False depending on whether the table exists or not.
         """
-        cursor = self.mainDb.cursor()
+        try:
+            cursor = self.mainDb.cursor()
 
-        cursor.execute("SELECT table_name FROM information_schema.tables")
+            cursor.execute("SELECT table_name FROM information_schema.tables")
 
-        tabes = cursor.fetchall()
+            tabes = cursor.fetchall()
 
-        for table_name in tabes:
-            if table in table_name:
-                return True
+            for table_name in tabes:
+                if table in table_name:
+                    return True
 
-        return False
+            return False
+        except Exception as e:
+            if attempt < 3:
+                self.connect()
+                return self._checkTable(table=table, attempt=attempt + 1)
+            else:
+                error(e, traceback.format_exc(), "Error checking table", level="ERROR")
+                return False
 
     @retry_connection
     def insert(self, table: str, names: list, values: list, retrieve_id: bool = False):
