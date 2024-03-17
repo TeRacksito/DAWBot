@@ -179,6 +179,7 @@ class CodingGym(commands.Cog):
         self.queue = PriorityQueue()
         self.weekly_schedule.start()
         self.daily_schedule.start()
+        self.test_daily_schedule.start()
     
     async def isdaw_member(self, interaction: Interaction):
         user = interaction.user
